@@ -1,0 +1,232 @@
+---
+title: "lab_report_knapsack"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{lab_report_knapsack}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+set.seed(42,kind="Mersenne-Twister",normal.kind="Inversion")
+n<-2000
+knapsack_objects<-data.frame(w=sample(1:4000,size= n,replace=TRUE),v=runif(n= n,0,10000))
+library("profvis")
+```
+
+```{r setup}
+library("lab6group5")
+```
+This vignettes contains three solutions to solve knapsack problem.Each has different computational complexity.
+
+# 1.brute_force_knapsack
+The brute force search solution is guaranteed to give a correct answer in all situations for the knapsack problems.This approach is of complexity O(2^n).
+This function has two parameters:
+x:a data frame which includes two columns "v" and "w".
+W:an integer which means the given limit of weight.
+```
+brute_force_knapsack <- function(x, W) {
+  #check input
+  if (is.data.frame(x) == FALSE | ncol(x) != 2) {
+    stop()
+  }
+  if (W < 0 | sum(x < 0) > 1) {
+    stop()
+  }
+  #all combinations
+  choice_matrix = matrix(0, 2 ** NROW(x) - 1, NROW(x))
+  for (i in 1:2 ** nrow(x) - 1) {
+    a = intToBits(i)
+    for (j in 1:NROW(x)) {
+      choice_matrix[i, j] = as.integer(intToBits(i)[j])
+    }
+  }
+
+  #calculate weight and value
+  value_matrix = matrix(0, 2 ** NROW(x) - 1, 2)
+  # total weight and total value of each combination
+  for (i in 1:nrow(choice_matrix)) {
+    # i is row, 1:255
+    total_w = 0
+    total_v = 0
+    for (j in 1:ncol(choice_matrix)) {
+      # j is column, 1:nrow(x)
+      if (choice_matrix[i, j] == 1) {
+        total_w = total_w + x[j, 1]
+        total_v = total_v + x[j, 2]
+      }
+    }
+    value_matrix[i, 1] = total_w
+    value_matrix[i, 2] = total_v
+  }
+
+  # get the maximum value
+  max_value = 0
+  tag = 0 # the row of maximum value
+  for (i in 1:nrow(value_matrix)) {
+    if (value_matrix[i, 1] < W & value_matrix[i, 2] > max_value) {
+      max_value = round(value_matrix[i, 2])
+      tag = i
+    }
+  }
+
+  #return a result list
+  elements = c()
+  for (i in 1:NCOL(choice_matrix)) {
+    if (choice_matrix[tag, i] == 1) {
+      elements = append(elements, i)
+    }
+  }
+  result = list(max_value, elements)
+  names(result) <- c("value", "elements")
+  return(result)
+
+}
+```
+## example:
+brute_force_knapsack(x= knapsack_objects[1:12,],W=2000)
+
+### Question:
+How much time does it takes to run the algorithm for n= 16 objects?
+```{r}
+timestart<-Sys.time()
+brute_force_knapsack(x=knapsack_objects[1:16,],W=5000)
+timeend<-Sys.time()
+runningtime<-timeend-timestart
+print(runningtime)
+```
+### Answer: ≈9s
+
+# 2.knapsack_dynamic
+The dynamic programming create an algorithm that can solve the knapsack problem exact by iterating over all possible values of w.
+This approach is of complexity O(Wn).
+This function has two parameters:
+x:a data frame which includes two columns "v" and "w".
+W:an integer which means the given limit of weight.
+```
+knapsack_dynamic <- function(x, W) {
+  if (is.data.frame(x) == FALSE | ncol(x) != 2) {
+    stop()
+  }
+  if (W < 0 | sum(x < 0) > 1) {
+    stop()
+  }
+  x$w <- as.numeric(x$w)
+  n <- nrow(x)
+  m <- matrix(0, nrow = n + 1, ncol = W + 1)
+  e <- matrix("", nrow = n + 1, ncol = W + 1)
+  for (j in 2:(W + 1)) {
+    for (i in 2:(n + 1)) {
+      if (x$w[i - 1] > (j - 1)) {
+        m[i, j] <- m[i - 1, j]
+        e[i, j] <- e[i - 1, j]
+      } else{
+        if (m[i - 1, j] >= m[i - 1, j - x$w[i - 1]] + x$v[i - 1]) {
+          m[i, j] <- m[i - 1, j]
+          e[i, j] <- e[i - 1, j]
+        } else{
+          m[i, j] <- m[i - 1, j - x$w[i - 1]] + x$v[i - 1]
+          e[i, j] <-
+            paste(e[i - 1, j - x$w[i - 1]], i - 1, sep = " ")
+        }
+      }
+      i <- i + 1
+    }
+    j <- j + 1
+  }
+  e <-
+    as.numeric(unlist(strsplit(e[which(m == max(m))][1], split = " ")))
+  l <-
+    list(value = round(max(m)), elements = e[which(is.na(e) == FALSE)])
+  return(l)
+}
+
+```
+## example:
+knapsack_dynamic(x= knapsack_objects[1:12,],W=2000)
+
+### Question: How much time does it takes to run the algorithm for n= 500 objects?
+```{r}
+timestart<-Sys.time()
+knapsack_dynamic(x=knapsack_objects[1:500,],W=5000)
+timeend<-Sys.time()
+runningtime<-timeend-timestart
+print(runningtime)
+```
+### Answer: ≈8s
+
+# 3.greedy_knapsack
+The greedy heuristic is to use the a heuristic or approximation for the problem. This algorithm will not give an exact result (but it can be shown that it will return at least 50% of the true maximum value). It will reduce the computational complexity considerably to O(nlogn).
+This function has two parameters:
+x:a data frame which includes two columns "v" and "w".
+W:an integer which means the given limit of weight.
+```
+greedy_knapsack <- function(x, W) {
+  #check input
+  if (is.data.frame(x) == FALSE | ncol(x) != 2) {
+    stop()
+  }
+  if (W < 0 | sum(x < 0) > 1) {
+    stop()
+  }
+  #initialization
+  unit_value = matrix(0, NROW(x), 4)
+  #unit_value
+  for (i in 1:NROW(x)) {
+    unit_value[i, 1] = x[i, 2] / x[i, 1]
+    unit_value[i, 2] = x[i, 2] # value
+    unit_value[i, 3] = x[i, 1]
+    unit_value[i, 4] = i
+  }
+  unit_value = unit_value[order(unit_value[, 1]),]
+  #result
+  elements = c()# items that has been selected
+  max_value = 0
+  total_weight = 0
+  for (i in NROW(unit_value):1) {
+    max_value = max_value + unit_value[i, 2]
+    total_weight = total_weight + unit_value[i, 3]
+    elements = append(elements, unit_value[i, 4])
+    if (total_weight + unit_value[i - 1, 3] > W) {
+      break
+    }
+  }
+  result = list(round(max_value), elements)
+  names(result) <- c("value", "elements")
+  return(result)
+}
+```
+## example:
+greedy_knapsack(x= knapsack_objects[1:12,],W=2000)
+
+### Question: How much time does it takes to run the algorithm for n= n= 1000000 objects?
+```{r}
+set.seed(42, kind = "Mersenne-Twister", normal.kind = "Inversion")
+n <- 1000000
+knapsack_objects <-
+     data.frame(w = sample(1:4000, size = n, replace = TRUE),
+                v = runif(n = n, 0, 10000))
+timestart<-Sys.time()
+greedy_knapsack(x=knapsack_objects[1:1000000,],W=5000)
+timeend<-Sys.time()
+runningtime<-timeend-timestart
+print(runningtime)
+```
+### Answer: ≈36s
+
+# This is a comparison of the speed of three functions.
+```{r}
+profvis({
+brute_force_knapsack(x= knapsack_objects[1:12,],W=2000)
+knapsack_dynamic(x= knapsack_objects[1:12,],W=2000)
+greedy_knapsack(x= knapsack_objects[1:12,],W=2000)
+})
+```
+
+### Question: What performance gain could you get by trying to improving your code?
+
+### Answer: Brute force search has the best accuracy but also has the most complicated complexity. The greedy heuristic can solve largest data with easier complexity, but can not give the accurate solution. The dynamic programming has the balance of accuracy and computational complexity.
