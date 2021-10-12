@@ -6,7 +6,7 @@ Author: Hong Zhang, BingRui Yao
 Maintainer: Hong Zhang <jxufe_hz@163.com>
 Description: This package contains three different methods to knapsack problem
     Brute force search, Dynamic programming and Greedy heuristic.
-License: GPL-3
+License: GPL-3 + file LICENSE
 Encoding: UTF-8
 LazyData: true
 RoxygenNote: 7.1.2
